@@ -240,8 +240,9 @@ Goodie = oo.class(DynO)
 function Goodie:init(pos, brain, effect)
    DynO.init(self, pos)
 
+   local _art = world:atlas_entry(ATLAS, 'powerup1')
    self.brain = brain or SimpletonBrain({0,-500})
-   self.testbox = self.go:add_component('CTestDisplay', {w=16,h=16,color={1,1,1,0.7}})
+   self.testbox = self.go:add_component('CStaticSprite', {entry=_art})
    self.effect = effect or effect_add_force
    self:add_sensor({fixture={type='rect',w=16,h=16,sensor=true}})
 end
@@ -277,11 +278,15 @@ Player = oo.class(DynO)
 function Player:init(pos)
    DynO.init(self, pos)
 
-   self.testbox = self.go:add_component('CTestDisplay', {w=32,h=32,color={1,1,1,0.6}})
+   local _art = world:atlas_entry(ATLAS, 'player')
+   self._right_art = _art
+   self._left_art = world:atlas_entry(ATLAS, '/xplayer')
+
+   self.sprite = self.go:add_component('CStaticSprite', {entry=self._right_art})
    self.max_slide_rate = 1000
    self.delay_factor = 0.70
    self.gun = Gun()
-   self:add_collider({fixture={type='rect',w=32,h=32,density=50}})
+   self:add_collider({fixture={type='rect',w=_art.w,h=_art.h,density=50}})
 end
 
 function Player:update()
@@ -291,6 +296,12 @@ function Player:update()
    local vel = vector.new(go:vel())
 
    local xx = input.leftright * self.max_slide_rate
+   if xx > 0 then
+      self.sprite:entry(self._right_art)
+   elseif xx < 0 then
+      self.sprite:entry(self._left_art)
+   end
+
    local yy = 0 --input.updown * self.max_slide_rate
 
    local desired_dv = (vector.new({xx,yy}) - vel) * self.delay_factor

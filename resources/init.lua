@@ -130,12 +130,21 @@ end
 function create_enemy_type(entry_name, c, d)
    local Enemy = oo.class(BaseEnemy)
    local _art = world:atlas_entry(ATLAS, entry_name)
+   local w2 = _art.w/2
+   local h2 = _art.h/2
+   local points = {
+      {w2,h2}, -- tr
+      {-w2,h2}, -- tl
+      {-w2,-h2*2/3.0}, -- ml
+      {-w2*2/3.0, -h2}, -- bl
+      {w2*2/3.0, -h2}, -- br
+      {w2, -h2*2/3.0}}
 
    Enemy.init = function(self, pos)
       BaseEnemy.init(self, pos)
 
       self.testbox = self.go:add_component('CStaticSprite', {entry=_art})
-      self:add_collider({fixture={type='rect', w=_art.w, h=_art.h, density=d}})
+      self:add_collider({fixture={type='poly', points=points, density=d}})
    end
    return Enemy
 end
@@ -191,11 +200,10 @@ Bullet = oo.class(DynO)
 function Bullet:init(pos, opts)
    DynO.init(self, pos)
 
-   local w = 16
-   local h = 16
+   local _art = world:atlas_entry(ATLAS, 'bubble1')
    self.brain = opts.brain
-   self.testbox = self.go:add_component('CTestDisplay', {w=w,h=h,color={0,1,1,1}})
-   self:add_collider({fixture={type='rect', w=w, h=h, density=opts.density}})
+   self.testbox = self.go:add_component('CStaticSprite', {entry=_art})
+   self:add_collider({fixture={type='rect', w=8, h=8, density=opts.density}})
    self.timer = Timer(self.go)
    self.timer:reset(opts.lifetime or 20, self:bind('terminate'))
 end

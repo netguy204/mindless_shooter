@@ -132,13 +132,18 @@ function create_enemy_type(entry_name, c, d)
    local _art = world:atlas_entry(ATLAS, entry_name)
    local w2 = _art.w/2
    local h2 = _art.h/2
+   local ws = 2/3.0
+   local hs = 4/5.0
+
    local points = {
-      {w2,h2}, -- tr
-      {-w2,h2}, -- tl
-      {-w2,-h2*2/3.0}, -- ml
-      {-w2*2/3.0, -h2}, -- bl
-      {w2*2/3.0, -h2}, -- br
-      {w2, -h2*2/3.0}}
+      {w2,h2*hs}, -- mtr
+      {w2*ws,h2},
+      {-w2*ws,h2},
+      {-w2,h2*hs}, -- tl
+      {-w2,-h2*hs}, -- ml
+      {-w2*ws, -h2}, -- bl
+      {w2*ws, -h2}, -- br
+      {w2, -h2*hs}}
 
    Enemy.init = function(self, pos)
       BaseEnemy.init(self, pos)

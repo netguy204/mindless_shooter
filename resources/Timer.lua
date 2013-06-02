@@ -3,31 +3,19 @@ local util = require 'util'
 local constant = require 'constant'
 
 local Timer = oo.class(oo.Object)
-Timer.timers = {}
 
-function Timer.register()
-   local thread = function(go, comp)
-      while true do
-         coroutine.yield()
-         for ii, timer in ipairs(Timer.timers) do
-            timer:evaluate()
-         end
-      end
-   end
-   stage:add_component('CScripted', {message_thread=util.thread(thread)})
-end
-
-function Timer:init()
+function Timer:init(owner)
    self.timer = nil
+   self.owner = owner or stage
    self.msg = constant.NEXT_EPHEMERAL_MESSAGE()
-   table.insert(Timer.timers, self)
+   self.owner:add_component('CScripted', {message_thread=util.fthread(self:bind('evaluate'))})
 end
 
 function Timer:maybe_set(timeout, fn)
    if not self.timer then
-      self.timer = stage:add_component('CTimer',
-                                       {kind=self.msg,
-                                        time_remaining=timeout})
+      self.timer = self.owner:add_component('CTimer',
+                                            {kind=self.msg,
+                                             time_remaining=timeout})
       self.fn = fn
    end
 end
@@ -35,9 +23,9 @@ end
 function Timer:reset(timeout, fn)
    self.fn = fn
    if not self.timer then
-      self.timer = stage:add_component('CTimer',
-                                       {kind=self.msg,
-                                        time_remaining=timeout})
+      self.timer = self.owner:add_component('CTimer',
+                                            {kind=self.msg,
+                                             time_remaining=timeout})
    else
       self.timer:delete_me(0)
       self.timer:time_remaining(timeout)
@@ -45,7 +33,7 @@ function Timer:reset(timeout, fn)
 end
 
 function Timer:evaluate()
-   if stage:has_message(self.msg) then
+   if self.owner:has_message(self.msg) then
       self.fn()
       if self.timer:delete_me() == 1 then
          self.timer = nil

@@ -31,7 +31,7 @@ function DynO:message()
 end
 
 function DynO:colliding_with(obj)
-   --pass
+   -- pass
 end
 
 function DynO:add_sensor(parms)
@@ -55,8 +55,9 @@ end
 
 local SimpletonBrain = oo.class(oo.Object)
 
-function SimpletonBrain:init(tgt_vel)
+function SimpletonBrain:init(tgt_vel, max_force)
    self.tgt_vel = tgt_vel
+   self.max_force = max_force or 10
 end
 
 function SimpletonBrain:update(obj)
@@ -65,7 +66,10 @@ function SimpletonBrain:update(obj)
    local vel = vector.new(go:vel())
 
    local dv = self.tgt_vel - vel
-   go:apply_impulse(dv * go:mass())
+   if dv:length() > self.max_force then
+      dv = dv:norm() * self.max_force
+   end
+   go:apply_force(dv)
 
    local fuzz = 128
 
@@ -75,17 +79,29 @@ function SimpletonBrain:update(obj)
    end
 end
 
+local DragBrain = oo.class(oo.Object)
+
+function DragBrain:init(drag_factor)
+   self.drag_factor = drag_factor or 10
+end
+
+function DragBrain:update(obj)
+   local vel = vector.new(obj.go:vel())
+   if vel:length() > 1 then
+      obj.go:apply_force(vel * (-self.drag_factor))
+   end
+end
+
 local BaseEnemy = oo.class(DynO)
 
 function BaseEnemy:init(pos, brain)
    DynO.init(self, pos)
-   self.brain = brain or SimpletonBrain({0, -500})
+   self.brain = brain or DragBrain()
 end
 
 function BaseEnemy:update()
    self.brain:update(self)
 end
-
 
 function create_enemy_type(w, h, c, d)
    local Enemy = oo.class(BaseEnemy)
@@ -118,9 +134,10 @@ end
 
 local Spawner = oo.class(oo.Object)
 
-function Spawner:init(rate, mix)
+function Spawner:init(rate, mix, height)
    self.rate = rate
    self.mix = mix
+   self.height = height
    self.timer = Timer()
    self:reset()
 end
@@ -133,25 +150,60 @@ end
 function Spawner:spawn()
    -- for now, just spawn at the top of the screen
    local e = util.rand_choice(self.mix)
-   e({util.rand_between(0,screen_width), screen_height})
+   e({util.rand_between(0,screen_width), self.height})
 
    self:reset()
 end
 
 local Bullet = oo.class(DynO)
 
-function Bullet:init(pos, brain)
+function Bullet:init(pos, opts)
    DynO.init(self, pos)
 
    local w = 16
    local h = 16
-   self.brain = brain or SimpletonBrain({0, 1000})
+   self.brain = opts.brain
    self.testbox = self.go:add_component('CTestDisplay', {w=w,h=h,color={0,1,1,1}})
-   self:add_collider({fixture={type='rect', w=w, h=h}})
+   self:add_collider({fixture={type='rect', w=w, h=h, density=opts.density}})
+   self.timer = Timer(self.go)
+   self.timer:reset(opts.lifetime or 20, self:bind('terminate'))
 end
 
 function Bullet:update()
    self.brain:update(self)
+end
+
+local Gun = oo.class(oo.Object)
+
+function Gun:init(bullet_kind)
+   self.bullet_kind = bullet_kind or Bullet
+   self.bullet_density = 1
+   self.bullet_brain = SimpletonBrain({0, 1000}, 100)
+end
+
+function Gun:fire(owner)
+   self.bullet_kind(owner.go:pos(),
+                    {density=self.bullet_density,
+                     brain=self.bullet_brain})
+end
+
+local function effect_add_mass(player)
+   local gun = player.gun
+   gun.bullet_density = gun.bullet_density + 1
+end
+
+local Goodie = oo.class(oo.DynO)
+
+function Goodie:init(pos, brain, effect)
+   DynO.init(self, pos)
+
+   self.brain = brain or SimpletonBrain({0,-500})
+   self.testbox = self.go:add_component('CTestDisplay', {w=w,h=h,color={1,1,1,0.7}})
+   self.effect = effect or effect_add_mass
+end
+
+function Goodie:apply_to(player)
+   self.effect(player)
 end
 
 local Player = oo.class(DynO)
@@ -162,7 +214,8 @@ function Player:init(pos)
    self.testbox = self.go:add_component('CTestDisplay', {w=32,h=32,color={1,1,1,0.6}})
    self.max_slide_rate = 1000
    self.delay_factor = 0.70
-   self.shot_speed = 2000
+   self.gun = Gun()
+   self:add_collider({fixture={type='rect',w=32,h=32,density=50}})
 end
 
 function Player:update()
@@ -177,10 +230,10 @@ function Player:update()
    local desired_dv = (vector.new({xx,yy}) - vel) * self.delay_factor
 
    local imp = desired_dv * go:mass()
-   go:apply_impulse(imp)
+   go:apply_impulse({imp[1], 0})
 
    if input.action1 then
-      Bullet(pos)
+      self.gun:fire(self)
    end
 
    -- fix position
@@ -213,11 +266,10 @@ end
 
 function level_init()
    util.install_basic_keymap()
-   Timer.register()
 
-   world:gravity({0,0})
+   world:gravity({0,-100})
    local player = Player({screen_width/2, 32})
-   local spawner = Spawner(1, {SmallEnemy, SmallEnemy, SmallEnemy, FatEnemy, HugeEnemy, Formation, Formation})
+   local spawner = Spawner(1, {SmallEnemy, SmallEnemy, SmallEnemy, FatEnemy, HugeEnemy, Formation, Formation}, screen_height)
    add_ground()
 
    local cam = stage:find_component('Camera', nil)

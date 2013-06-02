@@ -338,7 +338,7 @@ end
 local czor = world:create_object('Compositor')
 
 function black_background()
-   czor:clear_with_color({.3,.3,1,1})
+   czor:clear_with_color(util.rgba(73,150,232,255))
 end
 
 function enemy_limited_spawning()

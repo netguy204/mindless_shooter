@@ -6,9 +6,20 @@ local constant = require 'constant'
 local Registry = require 'Registry'
 
 local reg = Registry()
+local max_enemies = 50
 
-local DynO = oo.class(oo.Object)
+local DynO
+local SimpletonBrain
+local DragBrain
+local BaseEnemy
+local Formation
+local Spawner
+local Bullet
+local Gun
+local Goodie
+local Player
 
+DynO = oo.class(oo.Object)
 function DynO:init(pos)
    self.go = world:create_go()
    reg:register(self.go, self)
@@ -21,8 +32,8 @@ end
 
 function DynO:message()
    local go = self.go
-   local msg = go:has_message(constant.COLLIDING)
-   if msg then
+   local msgs = { go:has_message(constant.COLLIDING) }
+   for ii, msg in ipairs(msgs) do
       local obj = reg:find(msg.source)
       if obj then
          self:colliding_with(obj)
@@ -53,7 +64,17 @@ function DynO:terminate()
    reg:unregister(self.go)
 end
 
-local SimpletonBrain = oo.class(oo.Object)
+local function terminate_if_offscreen(self)
+   local fuzz = 128
+   local pos = self.go:pos()
+
+   -- kill on screen exit
+   if pos[1] > screen_width or pos[1] < 0 or pos[2] > screen_height + fuzz or pos[2] < -fuzz then
+      self:terminate()
+   end
+end
+
+SimpletonBrain = oo.class(oo.Object)
 
 function SimpletonBrain:init(tgt_vel, max_force)
    self.tgt_vel = tgt_vel
@@ -70,16 +91,9 @@ function SimpletonBrain:update(obj)
       dv = dv:norm() * self.max_force
    end
    go:apply_force(dv)
-
-   local fuzz = 128
-
-   -- kill on screen exit
-   if pos[1] > screen_width + fuzz or pos[1] < -fuzz or pos[2] > screen_height + fuzz or pos[2] < -fuzz then
-      obj:terminate()
-   end
 end
 
-local DragBrain = oo.class(oo.Object)
+DragBrain = oo.class(oo.Object)
 
 function DragBrain:init(drag_factor)
    self.drag_factor = drag_factor or 10
@@ -92,15 +106,23 @@ function DragBrain:update(obj)
    end
 end
 
-local BaseEnemy = oo.class(DynO)
+BaseEnemy = oo.class(DynO)
+BaseEnemy.active_count = 0
 
 function BaseEnemy:init(pos, brain)
    DynO.init(self, pos)
    self.brain = brain or DragBrain()
+   BaseEnemy.active_count = BaseEnemy.active_count + 1
+end
+
+function BaseEnemy:terminate()
+   DynO.terminate(self)
+   BaseEnemy.active_count = BaseEnemy.active_count - 1
 end
 
 function BaseEnemy:update()
    self.brain:update(self)
+   terminate_if_offscreen(self)
 end
 
 function create_enemy_type(w, h, c, d)
@@ -119,7 +141,7 @@ local SmallEnemy = create_enemy_type(32, 32, {1,0,1,1}, 1)
 local FatEnemy = create_enemy_type(64, 64, {1,1,0,1}, 10)
 local HugeEnemy = create_enemy_type(128, 128, {1,1,0,0.7}, 30)
 
-local Formation = oo.class(oo.Object)
+Formation = oo.class(oo.Object)
 
 function Formation:init(pos)
    local e = SmallEnemy
@@ -132,12 +154,17 @@ function Formation:init(pos)
    end
 end
 
-local Spawner = oo.class(oo.Object)
+local function always_spawn()
+   return true
+end
 
-function Spawner:init(rate, mix, height)
+Spawner = oo.class(oo.Object)
+
+function Spawner:init(rate, mix, height, should_spawn)
    self.rate = rate
    self.mix = mix
    self.height = height
+   self.should_spawn = should_spawn or always_spawn
    self.timer = Timer()
    self:reset()
 end
@@ -149,13 +176,14 @@ end
 
 function Spawner:spawn()
    -- for now, just spawn at the top of the screen
-   local e = util.rand_choice(self.mix)
-   e({util.rand_between(0,screen_width), self.height})
-
+   if self.should_spawn() then
+      local e = util.rand_choice(self.mix)
+      e({util.rand_between(0,screen_width), self.height})
+   end
    self:reset()
 end
 
-local Bullet = oo.class(DynO)
+Bullet = oo.class(DynO)
 
 function Bullet:init(pos, opts)
    DynO.init(self, pos)
@@ -171,42 +199,69 @@ end
 
 function Bullet:update()
    self.brain:update(self)
+   terminate_if_offscreen(self)
 end
 
-local Gun = oo.class(oo.Object)
+Gun = oo.class(oo.Object)
 
 function Gun:init(bullet_kind)
    self.bullet_kind = bullet_kind or Bullet
+   self.bubble_force = 100
    self.bullet_density = 1
-   self.bullet_brain = SimpletonBrain({0, 1000}, 100)
+   self.make_bullet_brain = function()
+      return SimpletonBrain({0, 1000}, self.bubble_force)
+   end
 end
 
 function Gun:fire(owner)
    self.bullet_kind(owner.go:pos(),
                     {density=self.bullet_density,
-                     brain=self.bullet_brain})
+                     brain=self.make_bullet_brain()})
 end
 
-local function effect_add_mass(player)
+local function effect_add_force(player)
    local gun = player.gun
-   gun.bullet_density = gun.bullet_density + 1
+   gun.bubble_force = gun.bubble_force + 100
 end
 
-local Goodie = oo.class(oo.DynO)
+Goodie = oo.class(DynO)
 
 function Goodie:init(pos, brain, effect)
    DynO.init(self, pos)
 
    self.brain = brain or SimpletonBrain({0,-500})
-   self.testbox = self.go:add_component('CTestDisplay', {w=w,h=h,color={1,1,1,0.7}})
-   self.effect = effect or effect_add_mass
+   self.testbox = self.go:add_component('CTestDisplay', {w=16,h=16,color={1,1,1,0.7}})
+   self.effect = effect or effect_add_force
+   self:add_sensor({fixture={type='rect',w=16,h=16,sensor=true}})
 end
 
 function Goodie:apply_to(player)
    self.effect(player)
+   self:terminate()
 end
 
-local Player = oo.class(DynO)
+function Goodie:update()
+   self.brain:update(self)
+   terminate_if_offscreen(self)
+end
+
+function Goodie:colliding_with(obj)
+   if obj:is_a(Player) then
+      self:apply_to(obj)
+   end
+end
+
+function HugeEnemy:terminate()
+   BaseEnemy.terminate(self)
+
+   local pos = self.go:pos()
+   if pos[2] > screen_height then
+      -- spawn a goodie when we disolve
+      Goodie({pos[1], screen_height})
+   end
+end
+
+Player = oo.class(DynO)
 
 function Player:init(pos)
    DynO.init(self, pos)
@@ -264,12 +319,17 @@ function black_background()
    czor:clear_with_color({.3,.3,1,1})
 end
 
+function enemy_limited_spawning()
+   return BaseEnemy.active_count <= max_enemies
+end
+
 function level_init()
    util.install_basic_keymap()
 
    world:gravity({0,-100})
    local player = Player({screen_width/2, 32})
-   local spawner = Spawner(1, {SmallEnemy, SmallEnemy, SmallEnemy, FatEnemy, HugeEnemy, Formation, Formation}, screen_height)
+   local spawn_list = {SmallEnemy, SmallEnemy, SmallEnemy, FatEnemy, HugeEnemy, Formation}
+   local spawner = Spawner(1, spawn_list, screen_height, enemy_limited_spawning)
    add_ground()
 
    local cam = stage:find_component('Camera', nil)

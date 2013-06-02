@@ -11,3 +11,5 @@ $ git submodule update
 $ make
 $ ./run.sh
 </pre>
+
+http://youtu.be/n-iCoujrN8o

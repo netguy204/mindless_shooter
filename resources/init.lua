@@ -19,6 +19,8 @@ local Gun
 local Goodie
 local Player
 
+local ATLAS = 'resources/default'
+
 DynO = oo.class(oo.Object)
 function DynO:init(pos)
    self.go = world:create_go()
@@ -125,21 +127,22 @@ function BaseEnemy:update()
    terminate_if_offscreen(self)
 end
 
-function create_enemy_type(w, h, c, d)
+function create_enemy_type(entry_name, c, d)
    local Enemy = oo.class(BaseEnemy)
+   local _art = world:atlas_entry(ATLAS, entry_name)
 
    Enemy.init = function(self, pos)
       BaseEnemy.init(self, pos)
 
-      self.testbox = self.go:add_component('CTestDisplay', {w=w,h=h,color=c})
-      self:add_collider({fixture={type='rect', w=w, h=h, density=d}})
+      self.testbox = self.go:add_component('CStaticSprite', {entry=_art})
+      self:add_collider({fixture={type='rect', w=_art.w, h=_art.h, density=d}})
    end
    return Enemy
 end
 
-local SmallEnemy = create_enemy_type(32, 32, {1,0,1,1}, 1)
-local FatEnemy = create_enemy_type(64, 64, {1,1,0,1}, 10)
-local HugeEnemy = create_enemy_type(128, 128, {1,1,0,0.7}, 30)
+local SmallEnemy = create_enemy_type('small_trash', {1,0,1,1}, 1)
+local FatEnemy = create_enemy_type('medium_trash', {1,1,0,1}, 10)
+local HugeEnemy = create_enemy_type('large_trash', {1,1,0,0.7}, 30)
 
 Formation = oo.class(oo.Object)
 

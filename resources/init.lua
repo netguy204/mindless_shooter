@@ -71,7 +71,7 @@ local function terminate_if_offscreen(self)
    local pos = self.go:pos()
 
    -- kill on screen exit
-   if pos[1] > screen_width or pos[1] < 0 or pos[2] > screen_height + fuzz or pos[2] < -fuzz then
+   if pos[1] > screen_width + fuzz or pos[1] < -fuzz or pos[2] > screen_height + fuzz or pos[2] < -fuzz then
       self:terminate()
    end
 end
@@ -288,7 +288,7 @@ function Player:init(pos)
    self._left_art = world:atlas_entry(ATLAS, '/xplayer')
 
    self.sprite = self.go:add_component('CStaticSprite', {entry=self._right_art})
-   self.max_slide_rate = 1000
+   self.max_slide_rate = 700
    self.delay_factor = 0.70
    self.gun = Gun()
    self:add_collider({fixture={type='rect',w=_art.w,h=_art.h,density=50}})
@@ -356,7 +356,7 @@ function level_init()
    world:gravity({0,-100})
    local player = Player({screen_width/2, 32})
    local spawn_list = {SmallEnemy, SmallEnemy, SmallEnemy, FatEnemy, HugeEnemy, Formation}
-   local spawner = Spawner(1, spawn_list, screen_height, enemy_limited_spawning)
+   local spawner = Spawner(1, spawn_list, screen_height + 64, enemy_limited_spawning)
    add_ground()
 
    local cam = stage:find_component('Camera', nil)

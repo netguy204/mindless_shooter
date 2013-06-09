@@ -336,8 +336,10 @@ function add_ground()
    local h = 32
    local w = screen_width;
    local offset = {w/2, h/2}
-   stage:add_component('CTestDisplay', {w=w, h=h, offset=offset, color={0.2, 0.7, 0.2, 1}})
-   stage:add_component('CCollidable', {fixture={type='rect',w=w,h=h,center=offset}})
+   local _back = world:atlas_entry(ATLAS, 'sea_back')
+   stage:add_component('CDrawWallpaper', {w=w, h=h, offset=offset, entry=_back})
+   stage:add_component('CCollidable', {fixture={type='rect',w=w,h=h/2,
+                                                center={offset[1], offset[2]-16}}})
 end
 
 local czor = world:create_object('Compositor')

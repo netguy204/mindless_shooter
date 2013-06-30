@@ -3,12 +3,10 @@ local util = require 'util'
 local Timer = require 'Timer'
 local vector = require 'vector'
 local constant = require 'constant'
-local Registry = require 'Registry'
+local DynO = require 'DynO'
 
-local reg = Registry()
 local max_enemies = 50
 
-local DynO
 local SimpletonBrain
 local DragBrain
 local BaseEnemy
@@ -20,51 +18,6 @@ local Goodie
 local Player
 
 local ATLAS = 'resources/default'
-
-DynO = oo.class(oo.Object)
-function DynO:init(pos)
-   self.go = world:create_go()
-   reg:register(self.go, self)
-
-   self.go:pos(pos)
-   self.go:body_type(constant.DYNAMIC)
-   self.scripted = self.go:add_component('CScripted', {update_thread=util.fthread(self:bind('update')),
-                                                       message_thread=util.fthread(self:bind('message'))})
-end
-
-function DynO:message()
-   local go = self.go
-   local msgs = { go:has_message(constant.COLLIDING) }
-   for ii, msg in ipairs(msgs) do
-      local obj = reg:find(msg.source)
-      if obj then
-         self:colliding_with(obj)
-      end
-   end
-end
-
-function DynO:colliding_with(obj)
-   -- pass
-end
-
-function DynO:add_sensor(parms)
-   if not self.sensors then
-      self.sensors = {}
-   end
-   table.insert(self.sensors, self.go:add_component('CSensor', parms))
-end
-
-function DynO:add_collider(parms)
-   if not self.colliders then
-      self.colliders = {}
-   end
-   table.insert(self.colliders, self.go:add_component('CCollidable', parms))
-end
-
-function DynO:terminate()
-   self.go:delete_me(1)
-   reg:unregister(self.go)
-end
 
 local function terminate_if_offscreen(self)
    local fuzz = 128
